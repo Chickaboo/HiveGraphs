@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLineEdit, QListWidget, QLabel, QFormLayout, QVBoxLayout, QFileDialog, QCheckBox, QSpinBox, QComboBox
-from PyQt5.QtGui import QPixmap, QIcon
+from PyQt5.QtGui import QIcon, QPixmap  
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
@@ -17,16 +17,12 @@ class HiveStatsGUI(QWidget):
         self.player_name_input = QLineEdit()
         
         self.game_input = QComboBox()
-        self.game_input.addItems(['wars', 'dr', 'hide', 'sg', 'murder', 'sky', 'ctf', 'drop', 'ground', 'build', 'party', 'main', 'bridge', 'grav'])
+        self.game_input.addItems(['wars', 'dr', 'hide', 'sg', 'murder', 'sky', 'ctf', 'drop', 'ground', 'build', 'party', 'bridge', 'grav'])
 
         self.year_input = QLineEdit()
 
-        self.kills_checkbox = QCheckBox('Kills')
-        self.deaths_checkbox = QCheckBox('Deaths')
-        self.assists_checkbox = QCheckBox('Assists')
-        self.played_checkbox = QCheckBox('Games Played')
-        self.victories_checkbox = QCheckBox('Victories')
-        
+        self.stats_checkboxes = []
+
         self.num_months_spinbox = QSpinBox()
         self.num_months_spinbox.setRange(1, 12)
         self.num_months_spinbox.setValue(6)
@@ -45,16 +41,15 @@ class HiveStatsGUI(QWidget):
         self.form_layout.addRow('Player Name', self.player_name_input)
         self.form_layout.addRow('Game', self.game_input)
         self.form_layout.addRow('Year', self.year_input)
-        self.form_layout.addRow('Stats to Graph', self.kills_checkbox)
-        self.form_layout.addRow('', self.deaths_checkbox)
-        self.form_layout.addRow('', self.assists_checkbox)
-        self.form_layout.addRow('', self.played_checkbox)
-        self.form_layout.addRow('', self.victories_checkbox)
-        self.form_layout.addRow('Num Months', self.num_months_spinbox)
-        self.form_layout.addRow('Graph Type', self.graph_type_combo)
         
         vbox = QVBoxLayout()
         vbox.addLayout(self.form_layout)
+        
+        self.stats_vbox = QVBoxLayout() # Will hold checkboxes
+        vbox.addLayout(self.stats_vbox)
+        
+        vbox.addWidget(self.num_months_spinbox)
+        vbox.addWidget(self.graph_type_combo)
         vbox.addWidget(self.get_stats_button)
         vbox.addWidget(self.download_button)
         vbox.addWidget(self.stats_list)
@@ -63,17 +58,61 @@ class HiveStatsGUI(QWidget):
         self.setLayout(vbox)
 
         # Connect signals
+        self.game_input.currentTextChanged.connect(self.update_stats)
         self.get_stats_button.clicked.connect(self.get_stats)
         self.download_button.clicked.connect(self.download_graph)
 
-        # Set window icon
+        # Set window icon and settings
         icon = QIcon('HiveLogo.png')
         self.setWindowIcon(icon)
-
-        # Window settings
-        self.setGeometry(300, 300, 300, 500)
+        self.setGeometry(300, 300, 300, 500) 
         self.setWindowTitle('Hive Graphs')
         self.show()
+
+        # Initialize with default stats
+        self.update_stats()
+
+    def update_stats(self):
+        # Remove old checkboxes
+        for checkbox in self.stats_checkboxes:
+            self.stats_vbox.removeWidget(checkbox)
+            checkbox.deleteLater()
+        self.stats_checkboxes.clear()
+        
+        # Add checkboxes based on game
+        game = self.game_input.currentText()
+        if game == 'wars':
+            stats = ['kills', 'deaths', 'played', 'xp', 'victories', 'treasure_destroyed', 'final_kills', 'prestige', 'uncapped_xp']
+        elif game == 'dr':
+            stats = ['kills', 'deaths', 'played', 'xp', 'victories', 'activated', 'uncapped_xp'] 
+        elif game == 'hide':
+            stats = ['seeker_kills', 'hider_kills', 'deaths', 'played', 'xp', 'victories']
+        elif game == 'sg':
+            stats = ['kills', 'deaths', 'played', 'xp', 'victories', 'uncapped_xp']
+        elif game == 'murder':
+            stats = ['kills', 'deaths', 'played', 'xp', 'victories', 'prestige', 'uncapped_xp', 'murderer_eliminations', 'murders', 'coins']
+        elif game == 'sky':
+            stats = ['kills', 'deaths', 'played', 'xp', 'victories', 'mystery_chests_destroyed', 'uncapped_xp', 'spells_used', 'ores_mined']
+        elif game == 'ctf':
+            stats = ['kills', 'deaths', 'played', 'xp', 'victories', 'flags_returned', 'flags_captured', 'assists']
+        elif game == 'drop':
+            stats = ['vaults_used', 'deaths', 'played', 'xp', 'victories', 'powerups_collected', 'blocks_destroyed']
+        elif game == 'ground':
+            stats = ['kills', 'deaths', 'played', 'xp', 'victories', 'projectiles_fired', 'blocks_placed', 'blocks_destroyed']
+        elif game == 'build':
+            stats = ['rating_great_received', 'rating_okay_received', 'rating_meh_received', 'rating_love_received', 'rating_good_received', 'uncapped_xp', 'victories']
+        elif game == 'party':
+            stats = ['rounds_survived', 'played', 'xp', 'victories', 'powerups_collected']
+        elif game == 'bridge':
+            stats = ['kills', 'goals', 'deaths', 'played', 'xp', 'victories']
+        elif game == 'grav':
+            stats = ['maps_completed', 'maps_completed_without_dying', 'deaths', 'played', 'xp', 'victories']
+            
+        
+        for stat in stats:
+            checkbox = QCheckBox(stat)
+            self.stats_checkboxes.append(checkbox)
+            self.stats_vbox.addWidget(checkbox)
 
     def get_stats(self):
         # Validate input fields
@@ -83,30 +122,15 @@ class HiveStatsGUI(QWidget):
         if not self.year_input.text():
             self.show_error("Year field is required")
             return
+            
+        # Get inputs
         self.player_name = self.player_name_input.text()
-        self.pixmap = QPixmap('graph.png')
-        self.graph_label.setPixmap(self.pixmap)
-            
-        # Get common inputs
         game = self.game_input.currentText()
-        year = self.year_input.text() 
+        year = self.year_input.text()
         num_months = self.num_months_spinbox.value()
-
-        # Get checked stats
-        stats = []
-        if self.kills_checkbox.isChecked():
-            stats.append('kills')
-        if self.deaths_checkbox.isChecked():
-            stats.append('deaths')
-        if self.assists_checkbox.isChecked():
-            stats.append('assists')
-        if self.played_checkbox.isChecked():
-            stats.append('played')
-        if self.victories_checkbox.isChecked():
-            stats.append('victories')
             
-        # Get player name
-        player_name = self.player_name_input.text()
+        # Get checked stats
+        stats = [cb.text() for cb in self.stats_checkboxes if cb.isChecked()]
         
         # Get graph type
         graph_type = self.graph_type_combo.currentText()
@@ -114,55 +138,45 @@ class HiveStatsGUI(QWidget):
         # Initialize data storage
         monthly_data = {stat: [] for stat in stats}
         
-        # Get data for player
-        months = range(1, num_months+1)
-        for month in months:
-            api_url = f'https://api.playhive.com/v0/game/monthly/player/{game}/{player_name}/{year}/{month}'
+        # Get data for each month
+        for month in range(1, num_months+1):
+            url = f'https://api.playhive.com/v0/game/monthly/player/{game}/{self.player_name}/{year}/{month}'
 
             try:
-                response = requests.get(api_url)
+                response = requests.get(url)
                 response.raise_for_status()
             except requests.exceptions.HTTPError as err:
-                self.show_error(f"Error getting data for {player_name}: {err}")
+                self.show_error(f"Error getting data for {self.player_name}: {err}")
                 continue
 
             try:
                 data = response.json()
             except JSONDecodeError:
-                self.show_error(f"Error decoding JSON for {player_name} in {month}/{year}")
+                self.show_error(f"Error decoding JSON for {self.player_name} in {month}/{year}")
                 continue
             
             if not data:
-                self.show_error(f"{player_name} not found for {month}/{year}")
+                self.show_error(f"{self.player_name} not found for {month}/{year}")
                 continue
 
             for stat in stats:
                 if stat in data:
                     monthly_data[stat].append(data[stat])
-                    self.stats_list.addItem(f"{month}/{year} {player_name} {stat}: {data[stat]}")
+                    self.stats_list.addItem(f"{month}/{year} {self.player_name} {stat}: {data[stat]}")
 
         # Create DataFrame
         df = pd.DataFrame(monthly_data)
         
-        # Generate graph based on graph type
+        # Generate graph
         if graph_type == 'line':
-            ax = df.plot(kind='line')
-        elif graph_type == 'bar':
+            ax = df.plot.line()
+        elif graph_type == 'bar': 
             ax = df.plot.bar()
-        elif graph_type == 'scatter':
-            ax = df.plot.scatter(x='Month', y='Count')
-        elif graph_type == 'pie':
-            ax = df.plot.pie(subplots=True)
 
         ax.set_xlabel('Month')
         ax.set_ylabel('Count')
-
         fig = ax.get_figure()
-
-        # Add title 
         fig.suptitle(f"{self.player_name} - {game} {year}", y=0.92)
-
-        # Save figure
         fig.savefig('graph.png')
         plt.close(fig)
 
@@ -176,7 +190,7 @@ class HiveStatsGUI(QWidget):
         error_dialog.exec_()
 
     def download_graph(self):
-        path = QFileDialog.getSaveFileName(self, 'Save Graph', 'graph.png', 'PNG(*.png)')[0]
+        path, _ = QFileDialog.getSaveFileName(self, 'Save Graph', 'graph.png', 'PNG(*.png)')
         if path:
             self.pixmap.save(path)
             
