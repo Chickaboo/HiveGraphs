@@ -26,7 +26,6 @@ class HiveStatsGUI(QWidget):
         self.graph_type_combo.addItems(['line', 'bar'])
         self.get_stats_button = QPushButton('Get Stats')
         self.download_button = QPushButton('Download Graph')
-        self.stats_list = QListWidget()
         self.graph_label = QLabel()
 
         # Layout
@@ -45,7 +44,6 @@ class HiveStatsGUI(QWidget):
         vbox.addWidget(self.graph_type_combo)
         vbox.addWidget(self.get_stats_button)
         vbox.addWidget(self.download_button)
-        vbox.addWidget(self.stats_list)
         vbox.addWidget(self.graph_label)
         
         self.setLayout(vbox)
@@ -106,6 +104,7 @@ class HiveStatsGUI(QWidget):
             checkbox = QCheckBox(stat)
             self.stats_checkboxes.append(checkbox)
             self.stats_vbox.addWidget(checkbox)
+
     def download_graph(self):
         path, _ = QFileDialog.getSaveFileName(self, 'Save Graph', 'graph.png', 'PNG(*.png)')
         if path:
@@ -134,7 +133,7 @@ class HiveStatsGUI(QWidget):
         graph_type = self.graph_type_combo.currentText()
         
         # Initialize data storage
-        monthly_data = {stat: [] for stat in stats}
+        monthly_data = []
         
         # Get data for each month
         for month in range(0, num_months+1):
@@ -149,30 +148,27 @@ class HiveStatsGUI(QWidget):
             except:
                 # Handle error
                 print(f"Error for {month}/{year}")
-                for stat in stats:
-                    monthly_data[stat].append(0)
+                monthly_data.append({})
                 continue
 
             if any(stat not in data for stat in stats):
                 # Data incomplete
                 print(f"Incomplete data for {month}/{year}")
-                for stat in stats:
-                    monthly_data[stat].append(0)
+                monthly_data.append({})
 
             else:
                 # Add actual data
-                for stat in stats:
-                    monthly_data[stat].append(data[stat])
+                monthly_data.append(data)
             
         
         # Create DataFrame
-        df = pd.DataFrame(monthly_data).fillna(0)
+        df = pd.DataFrame(monthly_data)
         
         # Generate graph
         if graph_type == 'line':
-            ax = df.plot.line(markevery=range(len(df)))
+            ax = df[stats].plot.line(markevery=range(len(df)))
         elif graph_type == 'bar':
-            ax = df.plot.bar()
+            ax = df[stats].plot.bar()
 
         # Graph customization
         ax.set_xlabel('Month')
