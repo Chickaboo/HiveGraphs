@@ -1,6 +1,6 @@
 import sys
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QLineEdit, QListWidget, QLabel, QFormLayout, QVBoxLayout, QFileDialog, QCheckBox, QSpinBox, QComboBox
-from PyQt5.QtGui import QIcon, QPixmap  
+from PyQt5.QtGui import QIcon, QPixmap
 import matplotlib.pyplot as plt
 import pandas as pd
 import requests
@@ -15,24 +15,17 @@ class HiveStatsGUI(QWidget):
     def initUI(self):
         # Widgets
         self.player_name_input = QLineEdit()
-        
         self.game_input = QComboBox()
         self.game_input.addItems(['wars', 'dr', 'hide', 'sg', 'murder', 'sky', 'ctf', 'drop', 'ground', 'build', 'party', 'bridge', 'grav'])
-
         self.year_input = QLineEdit()
-
         self.stats_checkboxes = []
-
         self.num_months_spinbox = QSpinBox()
         self.num_months_spinbox.setRange(1, 12)
         self.num_months_spinbox.setValue(6)
-
         self.graph_type_combo = QComboBox()
         self.graph_type_combo.addItems(['line', 'bar'])
-        
         self.get_stats_button = QPushButton('Get Stats')
         self.download_button = QPushButton('Download Graph')
-        
         self.stats_list = QListWidget()
         self.graph_label = QLabel()
 
@@ -45,7 +38,7 @@ class HiveStatsGUI(QWidget):
         vbox = QVBoxLayout()
         vbox.addLayout(self.form_layout)
         
-        self.stats_vbox = QVBoxLayout() # Will hold checkboxes
+        self.stats_vbox = QVBoxLayout()
         vbox.addLayout(self.stats_vbox)
         
         vbox.addWidget(self.num_months_spinbox)
@@ -65,7 +58,7 @@ class HiveStatsGUI(QWidget):
         # Set window icon and settings
         icon = QIcon('HiveLogo.png')
         self.setWindowIcon(icon)
-        self.setGeometry(300, 300, 300, 500) 
+        self.setGeometry(300, 300, 300, 500)
         self.setWindowTitle('Hive Graphs')
         self.show()
 
@@ -113,17 +106,22 @@ class HiveStatsGUI(QWidget):
             checkbox = QCheckBox(stat)
             self.stats_checkboxes.append(checkbox)
             self.stats_vbox.addWidget(checkbox)
+    def download_graph(self):
+        path, _ = QFileDialog.getSaveFileName(self, 'Save Graph', 'graph.png', 'PNG(*.png)')
+        if path:
+            self.pixmap.save(path)
 
     def get_stats(self):
-        # Validate input fields
+      
+        # Validate input
         if not self.game_input.currentText():
-            self.show_error("Game field is required")
+            self.show_error("Game is required")
             return
         if not self.year_input.text():
-            self.show_error("Year field is required")
+            self.show_error("Year is required")
             return
             
-        # Get inputs
+        # Get inputs  
         self.player_name = self.player_name_input.text()
         game = self.game_input.currentText()
         year = self.year_input.text()
@@ -139,60 +137,61 @@ class HiveStatsGUI(QWidget):
         monthly_data = {stat: [] for stat in stats}
         
         # Get data for each month
-        for month in range(1, num_months+1):
+        for month in range(0, num_months+1):
+
             url = f'https://api.playhive.com/v0/game/monthly/player/{game}/{self.player_name}/{year}/{month}'
 
             try:
                 response = requests.get(url)
                 response.raise_for_status()
-            except requests.exceptions.HTTPError as err:
-                self.show_error(f"Error getting data for {self.player_name}: {err}")
-                continue
-
-            try:
                 data = response.json()
-            except JSONDecodeError:
-                self.show_error(f"Error decoding JSON for {self.player_name} in {month}/{year}")
-                continue
-            
-            if not data:
-                self.show_error(f"{self.player_name} not found for {month}/{year}")
+
+            except:
+                # Handle error
+                print(f"Error for {month}/{year}")
+                for stat in stats:
+                    monthly_data[stat].append(0)
                 continue
 
-            for stat in stats:
-                if stat in data:
+            if any(stat not in data for stat in stats):
+                # Data incomplete
+                print(f"Incomplete data for {month}/{year}")
+                for stat in stats:
+                    monthly_data[stat].append(0)
+
+            else:
+                # Add actual data
+                for stat in stats:
                     monthly_data[stat].append(data[stat])
-                    self.stats_list.addItem(f"{month}/{year} {self.player_name} {stat}: {data[stat]}")
-
+            
+        
         # Create DataFrame
-        df = pd.DataFrame(monthly_data)
+        df = pd.DataFrame(monthly_data).fillna(0)
         
         # Generate graph
         if graph_type == 'line':
-            ax = df.plot.line()
-        elif graph_type == 'bar': 
+            ax = df.plot.line(markevery=range(len(df)))
+        elif graph_type == 'bar':
             ax = df.plot.bar()
 
+        # Graph customization
         ax.set_xlabel('Month')
         ax.set_ylabel('Count')
         fig = ax.get_figure()
         fig.suptitle(f"{self.player_name} - {game} {year}", y=0.92)
         fig.savefig('graph.png')
         plt.close(fig)
-
+        
         # Display graph
-        pixmap = QPixmap('graph.png')
-        self.graph_label.setPixmap(pixmap)
+        self.pixmap = QPixmap('graph.png')  
+        self.graph_label.setPixmap(self.pixmap)
 
     def show_error(self, error_msg):
         error_dialog = QtWidgets.QErrorMessage()
         error_dialog.showMessage(error_msg)
         error_dialog.exec_()
 
-    def download_graph(self):
-        path, _ = QFileDialog.getSaveFileName(self, 'Save Graph', 'graph.png', 'PNG(*.png)')
-        if path:
-            self.pixmap.save(path)
+
             
 if __name__ == '__main__':
     app = QApplication(sys.argv)
